@@ -112,19 +112,43 @@ class DeepSearchOrchestrator {
     try {
       const searchTermsData = await this.llmService.generateSearchTerms(query);
       
+      // Verifica se retornou dados válidos
+      if (!searchTermsData || !searchTermsData.search_terms || !Array.isArray(searchTermsData.search_terms)) {
+        logger.warn('LLM retornou dados inválidos, usando fallback');
+        return this.createFallbackSearchTerms(query);
+      }
+      
       logger.debug(`Termos de busca gerados:`, searchTermsData);
       return searchTermsData;
       
     } catch (error) {
       logger.error('Erro ao gerar termos de busca', error);
-      
-      // Fallback simples
-      return {
-        original_query: query,
-        search_terms: [query],
-        categories: ['geral']
-      };
+      return this.createFallbackSearchTerms(query);
     }
+  }
+
+  /**
+   * Cria termos de busca fallback quando LLM não está disponível
+   */
+  createFallbackSearchTerms(query) {
+    if (!query || typeof query !== 'string') {
+      query = 'pesquisa geral';
+    }
+
+    // Gera algumas variações simples da query
+    const words = query.toLowerCase().trim().split(/\s+/);
+    const searchTerms = [
+      query,
+      ...words.filter(word => word.length > 3).slice(0, 3),
+      `${query} tutorial`,
+      `${query} guide`
+    ].filter(Boolean).slice(0, 5);
+
+    return {
+      original_query: query,
+      search_terms: searchTerms,
+      categories: ['geral', 'busca automática']
+    };
   }
 
   /**
@@ -136,7 +160,23 @@ class DeepSearchOrchestrator {
       useAdvancedSearch = true
     } = options;
 
-    logger.info('Iniciando busca web', { termsCount: searchTerms.length });
+    // Validação robusta dos termos de busca
+    if (!Array.isArray(searchTerms) || searchTerms.length === 0) {
+      logger.warn('searchTerms inválido, usando fallback', { searchTerms });
+      searchTerms = ['busca geral'];
+    }
+
+    // Filtra termos válidos
+    searchTerms = searchTerms
+      .filter(term => term && typeof term === 'string' && term.trim().length > 0)
+      .map(term => term.trim())
+      .slice(0, 10); // Máximo 10 termos
+
+    if (searchTerms.length === 0) {
+      searchTerms = ['busca geral'];
+    }
+
+    logger.info('Iniciando busca web', { termsCount: searchTerms.length, terms: searchTerms });
 
     try {
       let searchResults = [];

@@ -19,7 +19,21 @@ const logFormat = winston.format.combine(
     let logMessage = `${timestamp} [${level.toUpperCase()}]: ${message}`;
     
     if (Object.keys(meta).length > 0) {
-      logMessage += ` ${JSON.stringify(meta)}`;
+      try {
+        logMessage += ` ${JSON.stringify(meta, null, 0)}`;
+      } catch (circularError) {
+        // Handle circular references
+        const safeObj = {};
+        for (const [key, value] of Object.entries(meta)) {
+          try {
+            JSON.stringify(value);
+            safeObj[key] = value;
+          } catch {
+            safeObj[key] = '[Circular Reference]';
+          }
+        }
+        logMessage += ` ${JSON.stringify(safeObj)}`;
+      }
     }
     
     if (stack) {

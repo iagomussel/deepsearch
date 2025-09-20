@@ -185,10 +185,15 @@ Responda apenas com o JSON no formato:
 
     } catch (error) {
       logger.error('Erro ao gerar termos de busca', error);
-      // Fallback simples
+      
+      // Fallback simples mas robusto
+      if (!query || typeof query !== 'string') {
+        query = 'pesquisa geral';
+      }
+
       return {
         original_query: query,
-        search_terms: [query],
+        search_terms: [query.trim()],
         categories: ['geral']
       };
     }
