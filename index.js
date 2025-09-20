@@ -95,12 +95,12 @@ class DeepSearchCLI {
     try {
       // 1. Gerar termos de busca
       this.spinner = ora('Encontrando termos de busca...').start();
-      const searchTerms = await this.orchestrator.generateSearchTerms(query);
-      this.spinner.succeed(`Gerados ${searchTerms.length} termos de busca`);
+      const searchTermsData = await this.orchestrator.generateSearchTerms(query);
+      this.spinner.succeed(`Gerados ${searchTermsData.search_terms?.length || 0} termos de busca`);
 
       // 2. Busca web
       this.spinner = ora('Pesquisando na web...').start();
-      const searchResults = await this.orchestrator.performWebSearch(searchTerms);
+      const searchResults = await this.orchestrator.performWebSearch(searchTermsData.search_terms);
       this.spinner.succeed(`Pesquisando em ${searchResults.sources.length} sites...`);
 
       // 3. Análise e contextualização
