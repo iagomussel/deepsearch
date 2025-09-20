@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # PostgreSQL com pgvector para armazenamento de vetores
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: deepsearch-db
+    environment:
+      POSTGRES_DB: deepsearch
+      POSTGRES_USER: deepsearch_user
+      POSTGRES_PASSWORD: deepsearch_pass
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deepsearch_user -d deepsearch"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Ollama para modelos locais (gemma3, llama)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: deepsearch-llm
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./docker/ollama/entrypoint.sh:/entrypoint.sh
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    restart: unless-stopped
+    entrypoint: /entrypoint.sh
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API HTTP do DeepSearch
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    container_name: deepsearch-api
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://deepsearch_user:deepsearch_pass@postgres:5432/deepsearch
+      - OLLAMA_BASE_URL=http://ollama:11434
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./reports:/app/reports
+      - ./logs:/app/logs
+
+  # Redis para cache e fila de tarefas (opcional)
+  redis:
+    image: redis:7.2-alpine
+    container_name: deepsearch-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  ollama_data:
+  redis_data:
